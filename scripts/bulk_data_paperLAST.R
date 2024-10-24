@@ -2,7 +2,6 @@ library(tidyverse)
 library(limma)
 library(edgeR)
 library(pheatmap)
-# library(mclust)
 library(umap)
 library(dendextend)
 library(ggridges)
@@ -20,57 +19,28 @@ script_dir <- dirname(rstudioapi::getActiveDocumentContext()$path)
 setwd(file.path(script_dir, ".."))
 
 ## Load raw data
+library(nanostringr)
+rcc_path <- "M:/DER/LABOS/IMMUNODER/Antoine/Data/NCOMMS-24-24396A/."
+biopsy.mat <- read_rcc(rcc_path)
+biopsy.mat <- as.data.frame(biopsy.mat$raw)
+rownames(biopsy.mat) <- biopsy.mat$Name
+biopsy.mat <- as.data.frame(t(biopsy.mat[,c(-1:-3)]))
 
-der.mat <- readRDS("data/biopsy.rds")
-der.mat <- readRDS("data/biopsy_code.rds")
-# der.mat <- readRDS(paste0(root_path, "rds/der.rds"))
-# der.meta <- readRDS(paste0(root_path, "rds/der_meta.rds"))
+biopsy.meta <- read.csv("data/biopsy_metaLAST17.csv", row.names = "X")
+dupi.evol <- read.csv("data/testdata_dupi.csv", row.names = "X")
 
 ## Gene panels
 
 hkg <- read.csv("data/housekeepinggenes.csv")$x
-pos.probes <- colnames(der.mat)[grepl("POS", colnames(der.mat))]
-neg.probes <- colnames(der.mat)[grepl("NEG", colnames(der.mat))][1:6]
+pos.probes <- colnames(biopsy.mat)[grepl("POS", colnames(biopsy.mat))]
+neg.probes <- colnames(biopsy.mat)[grepl("NEG", colnames(biopsy.mat))][1:6]
 
 signature.names <- c("Th1", "Th2", "Th17", "Neutro", "Macro", "Eosino", "IFN")
 sign.col <- c("#FFCC66", "#99CCFF", "#CCFF99", "#FFCCFF", "#FF6666", "#6699CC", "#FFFF99")
 names(sign.col) <- signature.names
 
 der.sign <- read.csv("data/der_signature.csv")
-
 nsf.sign <- read.csv("data/NSForest_markers_alldiseases.csv")
-
-## Sampling
-
-biopsy.meta <- read.csv("data/biopsy_metaLAST15.csv", row.names = "X")
-biopsy.mat <- der.mat[biopsy.meta$Biopsy,]
-
-## Basics
-
-biopsy.meta$cat <- biopsy.meta$Phenotype
-biopsy.meta[biopsy.meta$erythro, "cat"] <- "erythro"
-biopsy.meta[biopsy.meta$advspso, "cat"] <- "rashes"
-biopsy.meta[biopsy.meta$post.treatment, "cat"] <- "NR"
-table(biopsy.meta[, "cat"])
-
-median(biopsy.meta$Age, na.rm = T)
-min(biopsy.meta$Age, na.rm = T)
-max(biopsy.meta$Age, na.rm = T)
-table(biopsy.meta$Gender)/length(biopsy.meta$Gender)*100
-table(biopsy.meta[, "Phenotype"])
-table(biopsy.meta[biopsy.meta$advspso, "Phenotype"])
-sum(is.na(biopsy.meta[biopsy.meta$advspso, "Phenotype"]))
-table(biopsy.meta[biopsy.meta$erythro, "Phenotype"])
-table(biopsy.meta[biopsy.meta$pre.treatment, "Phenotype"])
-sum(is.na(biopsy.meta[biopsy.meta$pre.treatment, "Phenotype"]))
-table(biopsy.meta[biopsy.meta$post.treatment, "Phenotype"])
-sum(is.na(biopsy.meta[biopsy.meta$post.treatment, "Phenotype"]))
-
-table(biopsy.meta$Location)/sum(!is.na((biopsy.meta$Location)))*100
-
-# pre.treatment <- read.csv(paste0(root_path, "metadata/pretreatment.csv"))
-# post.treatment <- read.csv(paste0(root_path, "metadata/posttreatment.csv"))
-dupi.evol <- read.csv("data/testdata_dupi.csv")
 
 ## Normalization
 mpgm <- 1247
@@ -86,10 +56,10 @@ biopsy.norm.mat <- log2(biopsy.norm.mat)
 
 ## Scaling on sentinels
 
-phenotypes <- c("LP", "AD", "PSO", "ND", "Wells", "Lupus", "HealthySkin")
+phenotypes <- c("LP", "AD", "PsO", "NeuD", "Wells", "CLE", "Healthy")
 pheno.col <- c("#FFCC66", "#99CCFF", "#CCFF99", "#FFCCFF", "#6699CC", "#FFFF99", "#CCCCCC")
 names(pheno.col) <- phenotypes
-pheno2 <- c("PB", "TOX.MP", "PRG", "Erythrodermia", "ADvsPSO")
+pheno2 <- c("BP", "DHR", "PRG", "Erythroderma", "undetermined rashes")
 pheno.col2 <-  c("#66FFFF", "#66FF66","#FF9900", "#FF6666", "#FFFC33")
 names(pheno.col2) <- pheno2
 pheno.col.all <- c(pheno.col, pheno.col2)
@@ -133,7 +103,7 @@ sentinels.meta$dominant.module <- signature.names[max.col(sentinels.meta[,signat
 ## Limma
 
 mm <- model.matrix(~0 + sentinels.meta$Phenotype)
-d <- t(der.mat[sent1,])
+d <- t(biopsy.mat[sent1,])
 d <- DGEList(counts = d, group = sentinels.meta$Phenotype)
 y <- voom(d, mm, plot = F)
 fit <- lmFit(y, mm)
@@ -206,19 +176,6 @@ pdf("output/fig1HD.pdf", width = 7, height = 7)
 customVolcano(top.table, phenotypes[pheno.ind], der.sign$genes)
 dev.off()
 
-#### Check distribution of singature genes raw and normalized
-
-pdf("output/genexp_raw.pdf", width = 25, height = 5)
-boxplot(der.mat[sent1, der.sign$genes], las=2)
-dev.off()
-pdf("output/genexp_norm.pdf", width = 25, height = 5)
-boxplot(sentinels.mat, las=2)
-dev.off()
-pdf("output/genexp_scaled.pdf", width = 25, height = 5)
-boxplot(scaled.mat[sent1, der.sign$genes], las=2)
-dev.off()
-
-
 #### FIG1B - UMAP
 
 sentinels.umap <- umap(sentinels.mat, transform_seed=42)
@@ -238,7 +195,7 @@ dev.off()
 annot_col <- data.frame(Phenotype=sentinels.meta$Phenotype)
 rownames(annot_col) <- rownames(sentinels.mat)
 
-pdf("output/fig1HM.pdf", width = 15, height = 15)
+pdf("output/fig1Heatmap.pdf", width = 15, height = 15)
 pheatmap <- pheatmap(t(na.omit(sentinels.mat)), cluster_rows = FALSE, scale = "row", 
                      clustering_distance_cols = "correlation", 
                      clustering_method = "complete", 
@@ -341,7 +298,49 @@ ggplot(violin, aes(x=Signature, y=Expression, fill=Signature)) +
   scale_fill_manual(values=sign.col)
 dev.off()
 
-#### Significant pathway sentinels
+#### FIG2C - Boxplot logit transform challengers/signature
+
+test.meta <- as.data.frame(scaled.thres[biopsy.meta$Challenger,])
+test.meta$Phenotype <- biopsy.meta[biopsy.meta$Challenger, "Phenotype"]
+test.meta$dominant.module <- signature.names[max.col(test.meta[,signature.names])]
+violin <- test.meta %>% gather(Signature, Expression, !!signature.names, factor_key = TRUE)
+pdf("output/fig2Boxplot2.pdf", width = 6, height = 18)
+ggplot(violin, aes(x=Signature, y=Expression, fill=Signature)) +
+  geom_boxplot()+
+  geom_jitter(position=position_jitter(0.2)) +
+  facet_wrap(~Phenotype, nrow = 7)+
+  theme(legend.position = "top")+
+  scale_fill_manual(values=sign.col)
+dev.off()
+
+#### FIG2D - UMAP
+
+test.mat <- biopsy.norm.mat[biopsy.meta$Challenger, der.sign$genes]
+test.umap <- as.data.frame(predict(sentinels.umap, test.mat))
+test.meta$UMAP1 <- test.umap[rownames(test.meta),1]
+test.meta$UMAP2 <- test.umap[rownames(test.meta),2]
+plot.umap <- rbind(test.meta[, c("Phenotype", "UMAP1", "UMAP2")], 
+                   sentinels.meta[, c("Phenotype", "UMAP1", "UMAP2")])
+plot.umap[rownames(plot.umap) %in% rownames(sentinels.meta), "Biospy"] <- "Sentinel"
+plot.umap[is.na(plot.umap$Biospy), "Biospy"] <- "Challenger"
+pdf("output/fig2UMAP.pdf", width = 5, height = 3.5)
+plot.umap %>% ggplot(aes(x=UMAP1, y=UMAP2))+
+  geom_point(size=2, shape=21, aes(fill=Phenotype, col=Biospy))+
+  scale_fill_manual(values=pheno.col)+
+  scale_color_manual(values=c("black", NA))+
+  theme(legend.position = "top")+
+  labs(x = "UMAP1", y = "UMAP2")
+dev.off()
+
+test.meta$cluster <- test.meta$Phenotype
+test.meta[c("CLE_003", "AD_047"), "cluster"] <- c("LP", "Healthy") #"SW_002","PsO"
+test.meta$cluster <- factor(test.meta$cluster, levels=levels(sentinels.meta$Phenotype))
+test.meta$Phenotype <- factor(test.meta$Phenotype, levels=levels(sentinels.meta$Phenotype))
+perf.chal <- mltest::ml_test(test.meta$cluster, test.meta$Phenotype)
+as.data.frame(perf.chal[c("precision", "recall", "specificity")])
+FM_index(test.meta$cluster, test.meta$Phenotype, assume_sorted_vectors = TRUE)
+
+#### SuppTable1 - Significant pathway sentinels
 
 sent.thres <- as.data.frame(scaled.thres[sent1,])
 sent.thres$Phenotype <- biopsy.meta[sent1, "Phenotype"]
@@ -351,14 +350,14 @@ sent.thres <- sent.thres %>% gather(Signature, Expression, !!signature.names, fa
 sent.pval <- data.frame()
 
 # Get unique Phenotypes and Signatures
-phenotypes <- unique(sent.thres$Phenotype)
+# phenotypes <- unique(sent.thres$Phenotype)
 signatures <- unique(sent.thres$Signature)
 pairs.to.plot <- list(c("Th1", "LP"),
                       c("Th2", "AD"),
-                      c("Th17", "PSO"),
-                      c("Neutro", "ND"),
+                      c("Th17", "PsO"),
+                      c("Neutro", "NeuD"),
                       c("Eosino", "Wells"),
-                      c("IFN", "Lupus"))
+                      c("IFN", "CLE"))
 
 # Loop over each pair
 for (pair in pairs.to.plot) {
@@ -390,49 +389,6 @@ for (pair in pairs.to.plot) {
 # Reshape the result dataframe to the desired format
 sent.pval <- sent.pval %>% spread(key = Signature, value = P_Value)
 
-# boxplot_wilcox_func <- function(group1, group2, label, phenotype) {
-#   # Check if the inputs are numeric vectors
-#   if (!is.numeric(group1) || !is.numeric(group2)) {
-#     stop("Both inputs must be numeric vectors.")
-#   }
-#   
-#   # Perform a Wilcoxon test
-#   test_result <- wilcox.test(group1, group2)
-# 
-#   # Create a boxplot
-#   boxplot(group1, group2, names = c(label, "Other modules"), 
-#           main = "Boxplot with Wilcoxon Test Result", 
-#           sub = paste("P-value:", format(test_result$p.value, digits = 2, scientific = TRUE)), 
-#           xlab = phenotype, ylab = "Value")
-#   
-# }
-# 
-# for (i in seq_along(pairs.to.plot)){
-#     module.sel <- pairs.to.plot[[i]][1]
-#     pheno.sel <- pairs.to.plot[[i]][2]
-#     sel1 <- sent.thres$Phenotype %in% pheno.sel & sent.thres$Signature %in% module.sel
-#     sel2 <- sent.thres$Phenotype %in% pheno.sel & !sent.thres$Signature %in% module.sel
-#     group1 <- sent.thres %>% filter(sel1) %>% pull(Expression)
-#     group2 <- sent.thres %>% filter(sel2) %>% pull(Expression)
-#     
-#     boxplot_wilcox_func(group1, group2, module.sel, pheno.sel)
-# }
-
-#### FIG2C - Boxplot logit transform challengers/signature
-
-test.meta <- as.data.frame(scaled.thres[biopsy.meta$Challenger,])
-test.meta$Phenotype <- biopsy.meta[biopsy.meta$Challenger, "Phenotype"]
-test.meta$dominant.module <- signature.names[max.col(test.meta[,signature.names])]
-violin <- test.meta %>% gather(Signature, Expression, !!signature.names, factor_key = TRUE)
-pdf("output/fig2Boxplot2.pdf", width = 6, height = 18)
-ggplot(violin, aes(x=Signature, y=Expression, fill=Signature)) +
-  geom_boxplot()+
-  geom_jitter(position=position_jitter(0.2)) +
-  facet_wrap(~Phenotype, nrow = 7)+
-  theme(legend.position = "top")+
-  scale_fill_manual(values=sign.col)
-dev.off()
-
 #### Significant pathway challenger
 
 chal.thres <- test.meta
@@ -443,13 +399,13 @@ chal.thres <- chal.thres %>% gather(Signature, Expression, !!signature.names, fa
 chal.pval <- data.frame()
 
 # Get unique Phenotypes and Signatures
-phenotypes <- unique(chal.thres$Phenotype)
+# phenotypes <- unique(chal.thres$Phenotype)
 signatures <- unique(chal.thres$Signature)
 pairs.to.plot <- list(c("Th1", "LP"),
                       c("Th2", "AD"),
-                      c("Th17", "PSO"),
-                      c("Neutro", "ND"),
-                      c("IFN", "Lupus"))
+                      c("Th17", "PsO"),
+                      c("Neutro", "NeuD"),
+                      c("IFN", "CLE"))
 
 # Loop over each pair
 for (pair in pairs.to.plot) {
@@ -481,48 +437,9 @@ for (pair in pairs.to.plot) {
 # Reshape the result dataframe to the desired format
 chal.pval <- chal.pval %>% spread(key = Signature, value = P_Value)
 
-#### FIG2D - UMAP
-
-test.mat <- biopsy.norm.mat[biopsy.meta$Challenger, der.sign$genes]
-test.umap <- predict(sentinels.umap, test.mat)
-test.meta$UMAP1 <- test.umap[,1]
-test.meta$UMAP2 <- test.umap[,2]
-plot.umap <- rbind(test.meta[, c("Phenotype", "UMAP1", "UMAP2")], 
-                   sentinels.meta[, c("Phenotype", "UMAP1", "UMAP2")])
-plot.umap[rownames(plot.umap) %in% rownames(sentinels.meta), "Biospy"] <- "Sentinel"
-plot.umap[is.na(plot.umap$Biospy), "Biospy"] <- "Challenger"
-pdf("output/fig2UMAP.pdf", width = 5, height = 3.5)
-plot.umap %>% ggplot(aes(x=UMAP1, y=UMAP2))+
-  geom_point(size=2, shape=21, aes(fill=Phenotype, col=Biospy))+
-  scale_fill_manual(values=pheno.col)+
-  scale_color_manual(values=c("black", NA))+
-  theme(legend.position = "top")+
-  labs(x = "UMAP1", y = "UMAP2")
-dev.off()
-
-test.meta$cluster <- test.meta$Phenotype
-# test.meta[c("102_EczvsPso_2023.Bio.199", "66_AD_2022.Bio.101"), "cluster"] <- c("LP", "HealthySkin") #"99_SweetvsTOX_2023.Bio.130","PSO"
-test.meta[c("CLE_003", "AD_047"), "cluster"] <- c("LP", "HealthySkin") #"SW_002","PSO"
-test.meta$cluster <- factor(test.meta$cluster, levels=levels(sentinels.meta$Phenotype))
-test.meta$Phenotype <- factor(test.meta$Phenotype, levels=levels(sentinels.meta$Phenotype))
-perf.chal <- mltest::ml_test(test.meta$cluster, test.meta$Phenotype)
-as.data.frame(perf.chal[c("precision", "recall", "specificity")])
-FM_index(test.meta$cluster, test.meta$Phenotype, assume_sorted_vectors = TRUE)
-
-# test.mat <- biopsy.norm.mat[1:265,][biopsy.meta$Challenger, der.sign$genes]
-# test.umap <- umap(test.mat)
-# test.meta$UMAP1 <- test.umap$layout[,1]
-# test.meta$UMAP2 <- test.umap$layout[,2]
-# test.meta %>% ggplot(aes(x=UMAP1, y=UMAP2, color=Phenotype))+
-#   geom_point(size=2, shape=21, col="black", aes(fill=Phenotype))+
-#   scale_fill_manual(values=pheno.col)+
-#   theme(legend.position = "top")+
-#   labs(x = "UMAP1",
-#        y = "UMAP2")
-
 ### FIG3 - Boxplot logit transform PB, TOX-MP, PRG
 
-pheno2 <- c(phenotypes, "PB", "TOX.MP")
+pheno2 <- c(phenotypes, "BP", "DHR")
 sent2 <- biopsy.meta[biopsy.meta$Sentinel &
                        biopsy.meta$Phenotype %in% pheno2, "Biopsy"]
 subset.mat <- scaled.mat[sent2, der.sign$genes]
@@ -565,9 +482,9 @@ sent.other.meta %>% ggplot(aes(x=UMAP1, y=UMAP2))+
   scale_fill_manual(values=pheno.col.all)
 dev.off()
 
-#### FIG3 - Heatmap PB/TOX/PRG
+#### FIG3 - Heatmap PB/TOX/
 
-pheno2 <- c("TOX.MP")
+pheno2 <- c("BP", "DHR")
 sent2 <- biopsy.meta[biopsy.meta$Sentinel & biopsy.meta$Phenotype %in% pheno2,
                      "Biopsy"]
 
@@ -593,7 +510,7 @@ dev.off()
 
 ### Fig3 - Hierachical clustering
 
-pheno2 <- c("PB", "TOX.MP", "PRG")
+pheno2 <- c("BP", "DHR", "PRG")
 sent2 <- biopsy.meta[biopsy.meta$Sentinel & biopsy.meta$Phenotype %in% pheno2,
                      "Biopsy"]
 
@@ -648,133 +565,26 @@ dev.off()
 merge.meta$clust.nsf <- as.factor(cutree(dend, k=k))
 FM_index(merge.meta$clust.nsf, merge.meta$Phenotype, assume_sorted_vectors = TRUE)
 
-### Fig3 - DGE Limma
+#### FIG4 Erythroderma & undetermined rashes
 
-merge.meta$Phenotype <- as.factor(merge.meta$Phenotype)
-mm <- model.matrix(~0 + merge.meta$Phenotype)
-d <- t(der.mat[rownames(merge.mat),])
-d <- DGEList(counts = d, group = merge.meta$Phenotype)
-y <- voom(d, mm, plot = F)
-fit <- lmFit(y, mm)
-levels <- colnames(coef(fit))
-contr <- diag(length(levels))
-contr[contr == 0] <- -1/(length(levels)-1)
-rownames(contr) <- levels
-tmp <- contrasts.fit(fit, contr)
-tmp <- eBayes(tmp)
-
-pheno.ind <- 6
-top.table <- top.table <- topTable(tmp, sort.by = "P", n = Inf, coef = pheno.ind)
-pb.dge <- top.table %>% filter(logFC > 1)
-pb.sign <- der.sign[der.sign$genes %in% rownames(pb.dge), ]
-pb.dge[pb.sign$genes, "Signature"] <- pb.sign$signature
-
-pdf("output/sup1DEGsPB.pdf", width = 7, height = 7)
-customVolcano(top.table, levels(merge.meta$Phenotype)[pheno.ind], rownames(pb.dge))
-dev.off()
-
-pheno.ind <- 9
-top.table <- top.table <- topTable(tmp, sort.by = "P", n = Inf, coef = pheno.ind)
-toxmp.dge <- top.table %>% filter(logFC > 1)
-toxmp.sign <- der.sign[der.sign$genes %in% rownames(toxmp.dge), ]
-toxmp.dge[toxmp.sign$genes, "Signature"] <- toxmp.sign$signature
-
-pdf("output/sup1DEGsTOXMP.pdf", width = 7, height = 7)
-customVolcano(top.table, levels(merge.meta$Phenotype)[pheno.ind], rownames(toxmp.dge))
-dev.off()
-
-pheno.ind <- 7
-top.table <- top.table <- topTable(tmp, sort.by = "P", n = Inf, coef = pheno.ind)
-prg.dge <- top.table %>% filter(logFC > 1)
-prg.sign <- der.sign[der.sign$genes %in% rownames(prg.dge), ]
-prg.dge[prg.sign$genes, "Signature"] <- prg.sign$signature
-
-pdf("output/sup1DEGsPRG.pdf", width = 7, height = 7)
-customVolcano(top.table, levels(merge.meta$Phenotype)[pheno.ind], rownames(prg.dge))
-dev.off()
-
-### FIG4 ADvsPSO
-
-subset.mat <- scaled.mat[biopsy.meta$advspso, der.sign$genes]
-subset.meta <- as.data.frame(scaled.thres[biopsy.meta$advspso,])
-subset.meta$Phenotype <- "ADvsPSO"
-
-pheno.advspso <- c("AD", "PSO", "TOX.MP", "LP", "Lupus", "PB")
-sent.advspso <- biopsy.meta[biopsy.meta$Sentinel & biopsy.meta$Phenotype %in% pheno.advspso,
-                            "Biopsy"]
-
-merge.mat <- scaled.mat[c(sent.advspso, rownames(subset.mat)), ]
-merge.meta <- biopsy.meta[rownames(merge.mat),]
-merge.meta$Phenotype <- as.character(merge.meta$Phenotype)
-merge.meta[rownames(subset.mat), "Phenotype"] <- "ADvsPSO"
-
-set.seed(1234)
-sent.advspso.umap <- umap(merge.mat[sent.advspso,])
-sent.advspso.meta <- merge.meta[sent.advspso,]
-sent.advspso.meta$UMAP1 <- sent.advspso.umap$layout[,1]
-sent.advspso.meta$UMAP2 <- sent.advspso.umap$layout[,2]
-
-subset.umap <- predict(sent.advspso.umap, subset.mat)
-subset.meta$UMAP1 <- subset.umap[,1]
-subset.meta$UMAP2 <- subset.umap[,2]
-plot.umap <- rbind(subset.meta[, c("Phenotype", "UMAP1", "UMAP2")], 
-                   sent.advspso.meta[, c("Phenotype", "UMAP1", "UMAP2")])
-plot.umap$Sentinels <- rownames(plot.umap) %in% rownames(sent.advspso.meta)
-pdf("output/fig4advspsoUMAP.pdf", width = 5, height = 3.5)
-plot.umap %>% ggplot(aes(x=UMAP1, y=UMAP2))+
-  geom_point(size=2, shape=21, aes(fill=Phenotype))+
-  theme(legend.position = "top")+
-  scale_fill_manual(values=pheno.col.all)
-dev.off()
-
-subset.meta[subset.meta$UMAP1 > -1 & subset.meta$UMAP2 > 0, "Prediction"] <- "PSO"
-subset.meta[subset.meta$UMAP2 < 0, "Prediction"] <- "AD"
-subset.meta[subset.meta$UMAP1 < -1, "Prediction"] <- "LP"
-violin <- subset.meta
-violin <- violin %>% gather(Signature, Expression, !!signature.names, factor_key = TRUE)
-
-pdf("output/fig4advspsoUMAPpred.pdf", width = 6, height = 10)
-ggplot(violin, aes(x=Signature, y=Expression, fill=Signature)) +
-  geom_boxplot()+
-  geom_jitter(position=position_jitter(0.2))+
-  theme(legend.position = "top")+
-  facet_wrap(~Prediction, ncol = 1)+
-  scale_fill_manual(values=sign.col)
-dev.off()
-
-# patient <- "115_Prurigo_2024.Bio.111"
-patient <- "UR_003"
-
-data.frame(Signature=signature.names, Score=scaled.thres[patient, signature.names]) %>% 
-  ggplot(aes(x=Signature, y=Score, fill=Signature))+
-  geom_col(width=0.9, color="black")+
-  scale_fill_manual(values=sign.col)+
-  scale_x_discrete(limits = signature.names)+
-  ylim(0,1)+
-  theme_classic()+
-  ggtitle(patient)+
-  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
-dev.off()
-
-### FIG5 - Erythoderma
+# Erythrodermia
 
 subset.mat <- scaled.mat[biopsy.meta$erythro, der.sign$genes]
 subset.meta <- as.data.frame(scaled.thres[biopsy.meta$erythro,])
-subset.meta$Phenotype <- "Erythrodermia"
+subset.meta$Phenotype <- "Erythroderma"
 subset.meta$dominant.module <- signature.names[max.col(subset.meta[,signature.names])]
 # subset.meta[erythro$Patient, 9:20] <- erythro[,-4]
 
-pheno.erythro <- c("AD", "PSO", "TOX.MP")
+pheno.erythro <- c("AD", "PsO", "DHR")
 sent.erythro <- biopsy.meta[biopsy.meta$Sentinel & 
-                               biopsy.meta$Phenotype %in% pheno.erythro,
-                             "Biopsy"]
+                              biopsy.meta$Phenotype %in% pheno.erythro,
+                            "Biopsy"]
 
 merge.mat <- scaled.mat[c(sent.erythro, rownames(subset.mat)), ]
 merge.meta <- biopsy.meta[rownames(merge.mat),]
 merge.meta$Phenotype <- as.character(merge.meta$Phenotype)
-merge.meta[rownames(subset.mat), "Phenotype"] <- "Erythrodermia"
+merge.meta[rownames(subset.mat), "Phenotype"] <- "Erythroderma"
 
-set.seed(123)
 sent.erythro.umap <- umap(merge.mat[sent.erythro,])
 sent.erythro.meta <- merge.meta[sent.erythro,]
 sent.erythro.meta$UMAP1 <- sent.erythro.umap$layout[,1]
@@ -786,20 +596,20 @@ subset.meta$UMAP2 <- subset.umap[,2]
 plot.umap <- rbind(subset.meta[, c("Phenotype", "UMAP1", "UMAP2")], 
                    sent.erythro.meta[, c("Phenotype", "UMAP1", "UMAP2")])
 plot.umap$Sentinels <- rownames(plot.umap) %in% rownames(sent.erythro.meta)
-pdf("output/fig5erythroUMAP.pdf", width = 5, height = 3.5)
+pdf("output/fig4erythroUMAP.pdf", width = 5, height = 3.5)
 plot.umap %>% ggplot(aes(x=UMAP1, y=UMAP2))+
   geom_point(size=2, shape=21, aes(fill=Phenotype))+
   theme(legend.position = "top")+
   scale_fill_manual(values=c(pheno.col, pheno.col2))
 dev.off()
 
-subset.meta[subset.meta$UMAP2 > -5 & subset.meta$UMAP2 < 0, "Prediction"] <- "AD"
-subset.meta[subset.meta$UMAP2 > 0, "Prediction"] <- "PSO"
-subset.meta[subset.meta$UMAP1 < -2, "Prediction"] <- "TOX.MP"
+subset.meta[subset.meta$UMAP1 < 1 & subset.meta$UMAP2 < 0, "Prediction"] <- "AD"
+subset.meta[subset.meta$UMAP1 > 1 & subset.meta$UMAP2 > -4, "Prediction"] <- "PsO"
+subset.meta[subset.meta$UMAP1 < 1 & subset.meta$UMAP2 > 4, "Prediction"] <- "DHR"
 
 violin <- subset.meta
 violin <- violin %>% gather(Signature, Expression, !!signature.names, factor_key = TRUE)
-pdf("output/fig5erythroUMAPpred.pdf", width = 6, height = 10)
+pdf("output/fig4erythroUMAPpred.pdf", width = 6, height = 10)
 ggplot(violin, aes(x=Signature, y=Expression, fill=Signature)) +
   geom_boxplot()+
   geom_jitter(position=position_jitter(0.2))+
@@ -808,32 +618,59 @@ ggplot(violin, aes(x=Signature, y=Expression, fill=Signature)) +
   scale_fill_manual(values=sign.col)
 dev.off()
 
-subset.meta$diag.histo <- subset.meta$Prediction
+# Undetermined rashes
 
-# subset.meta["2_ErythroEczema_2019.Bio.011", "diag.histo"] <- "TOX.MP"# subset.meta["9_Erythrodermy_2020.Bio.055", "diag.histo"] <- NA
-# subset.meta["44_Erythrodermy_2021.Bio.131", "diag.histo"] <- "TOX.MP"
-subset.meta["Eryth_002", "diag.histo"] <- "TOX.MP"
-subset.meta["Eryth_004", "diag.histo"] <- "TOX.MP"
+subset.mat <- scaled.mat[biopsy.meta$advspso, der.sign$genes]
+subset.meta <- as.data.frame(scaled.thres[biopsy.meta$advspso,])
+subset.meta$Phenotype <- "undetermined rashes"
 
-perf.sent <- mltest::ml_test(subset.meta$diag.histo, subset.meta$Prediction)
-as.data.frame(perf.sent[c("precision", "recall", "specificity")])
-FM_index(subset.meta$diag.histo, subset.meta$Prediction, assume_sorted_vectors = TRUE)
+pheno.advspso <- c("AD", "PsO", "DHR", "LP", "CLE", "BP")
+sent.advspso <- biopsy.meta[biopsy.meta$Sentinel & biopsy.meta$Phenotype %in% pheno.advspso,
+                            "Biopsy"]
 
-# unclear.histo.diag <- c("DHR","AD","AD","AD",NA,"DHR","AD","PSO","PSO","DHR","DHR","DHR")
-# unclear.final.diag <- c("DHR","AD","AD","AD","AD","AD","AD","PSO","PSO","AD","DHR","DHR")
-#                        
-# perf.sent <- mltest::ml_test(unclear.histo.diag, unclear.final.diag)
-# as.data.frame(perf.sent[c("precision", "recall", "specificity")])
-# FM_index(unclear.histo.diag, unclear.final.diag, assume_sorted_vectors = TRUE)
+merge.mat <- scaled.mat[c(sent.advspso, rownames(subset.mat)), ]
+merge.meta <- biopsy.meta[rownames(merge.mat),]
+merge.meta$Phenotype <- as.character(merge.meta$Phenotype)
+merge.meta[rownames(subset.mat), "Phenotype"] <- "undetermined rashes"
 
-### FIG6 - DUPI non-responder
+sent.advspso.umap <- umap(merge.mat[sent.advspso,])
+sent.advspso.meta <- merge.meta[sent.advspso,]
+sent.advspso.meta$UMAP1 <- sent.advspso.umap$layout[,1]
+sent.advspso.meta$UMAP2 <- sent.advspso.umap$layout[,2]
+
+subset.umap <- predict(sent.advspso.umap, subset.mat)
+subset.meta$UMAP1 <- subset.umap[,1]
+subset.meta$UMAP2 <- subset.umap[,2]
+plot.umap <- rbind(subset.meta[, c("Phenotype", "UMAP1", "UMAP2")], 
+                   sent.advspso.meta[, c("Phenotype", "UMAP1", "UMAP2")])
+plot.umap$Sentinels <- rownames(plot.umap) %in% rownames(sent.advspso.meta)
+pdf("output/fig4rashesUMAP.pdf", width = 5, height = 3.5)
+plot.umap %>% ggplot(aes(x=UMAP1, y=UMAP2))+
+  geom_point(size=2, shape=21, aes(fill=Phenotype))+
+  theme(legend.position = "top")+
+  scale_fill_manual(values=pheno.col.all)
+dev.off()
+
+subset.meta[subset.meta$UMAP1 > 0 & subset.meta$UMAP2 > 0, "Prediction"] <- "PsO"
+subset.meta[subset.meta$UMAP1 < 0 & subset.meta$UMAP1 > -6, "Prediction"] <- "AD"
+subset.meta[subset.meta$UMAP1 < 0 & subset.meta$UMAP2 < 0, "Prediction"] <- "LP"
+
+pdf("output/fig4rashesUMAPpred.pdf", width = 6, height = 10)
+ggplot(violin, aes(x=Signature, y=Expression, fill=Signature)) +
+  geom_boxplot()+
+  geom_jitter(position=position_jitter(0.2))+
+  theme(legend.position = "top")+
+  facet_wrap(~Prediction, ncol = 1)+
+  scale_fill_manual(values=sign.col)
+dev.off()
+
+#### FIG6 - DUPI non-responder
 
 subset.mat <- scaled.mat[dupi.evol$Biopsy, der.sign$genes]
 subset.meta <- as.data.frame(scaled.thres[dupi.evol$Biopsy,])
 subset.meta$Treatment <- factor(dupi.evol$Treatment, 
                                    levels=c("Pre-treatment", "Post-treatment"))
 subset.meta$Patient <- dupi.evol$Patient
-# selected.pathway <- signature.names
 selected.pathway <- c("Th1", "Th2", "Th17")
 
 violin <- subset.meta
@@ -846,102 +683,21 @@ ggplot(data=violin, aes(x=Patient, y=Expression, fill=Signature, label=Expressio
   scale_fill_manual(values = sign.col) +
 dev.off()
 
-## Dominant modules
+#### SUP2 - PCA/UMAP
 
-pre.treatment[, signature.names] <- scaled.thres[pre.treatment$Patient, signature.names]
-pre.treatment$dominant.module <- c("Th1", "Th2", "Th17")[max.col(pre.treatment[,c("Th1", "Th2", "Th17")])]
-
-post.treatment[, signature.names] <- scaled.thres[post.treatment$Biopsy, signature.names]
-post.treatment$dominant.module <- signature.names[max.col(post.treatment[,signature.names])]
-
-## Barplot example mismatch
-# patient <- "43_ADvsMF_2021.Bio.125"
-# patient <- "44_NummEcz_2021.Bio.140"
-patient <- "NR_004"
-patient <- "NR_007"
-
-data.frame(Signature=signature.names, Score=scaled.thres[patient, signature.names]) %>% 
-  ggplot(aes(x=Signature, y=Score, fill=Signature))+
-    geom_col(width=0.9, color="black")+
-    scale_fill_manual(values=sign.col)+
-    scale_x_discrete(limits = signature.names)+
-    ylim(0,1)+
-    theme_classic()+
-    ggtitle(patient)+
-    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
-dev.off()
-
-#### SUP1 - PCA/UMAP
-
-test.mat <- biopsy.norm.mat[biopsy.meta$Challenger, der.sign$genes]
-test.meta <- as.data.frame(scaled.thres[rownames(test.mat),])
-test.meta[rownames(test.mat), "Phenotype"] <- biopsy.meta[rownames(test.mat), "Phenotype"]
-
-sentinels.pca <- prcomp(sentinels.mat)
-var <- sentinels.pca$sdev^2/sum(sentinels.pca$sdev^2)
-sentinels.meta$PC1 <- sentinels.pca$x[,1]
-sentinels.meta$PC2 <- sentinels.pca$x[,2]
-sentinels.meta %>% ggplot(aes(x=PC1, y=PC2))+
-  geom_point(size=2, shape=21, col="black", aes(fill=Phenotype))+
-  scale_fill_manual(values=pheno.col)+
-  labs(x=paste0("PC1: ", round(var[1]*100, 1), "%"),
-       y=paste0("PC2: ", round(var[2]*100, 1), "%"))
-
-sentinels.umap <- umap(biopsy.norm.mat[rownames(sentinels.mat),])
-sentinels.meta$UMAP1 <- sentinels.umap$layout[,1]
-sentinels.meta$UMAP2 <- sentinels.umap$layout[,2]
-sentinels.meta %>% ggplot(aes(x=UMAP1, y=UMAP2, color=Phenotype))+
-  geom_point(size=2, shape=21, col="black", aes(fill=Phenotype))+
-  scale_fill_manual(values=pheno.col)+
-  labs(x = "UMAP1",
-       y = "UMAP2")
-test.mat <- biopsy.norm.mat[biopsy.meta$Challenger, ]
-test.umap <- predict(sentinels.umap, test.mat)
-test.meta$UMAP1 <- test.umap[,1]
-test.meta$UMAP2 <- test.umap[,2]
-plot.umap <- rbind(test.meta[, c("Phenotype", "UMAP1", "UMAP2")], 
-                   sentinels.meta[, c("Phenotype", "UMAP1", "UMAP2")])
-plot.umap$sentinels <- rownames(plot.umap) %in% rownames(sentinels.meta)
-plot.umap %>% ggplot(aes(x=UMAP1, y=UMAP2, color=Phenotype))+
-  geom_point(size=2, shape=21, aes(fill=Phenotype, col=sentinels))+
-  scale_fill_manual(values=pheno.col)+
-  scale_color_manual(values=c("grey", "black"))+
-  labs(x = "UMAP1",
-       y = "UMAP2")
-
-samples <- (biopsy.meta$Sentinel & biopsy.meta$Phenotype %in% phenotypes) | biopsy.meta$Challenger
-combined.umap <- umap(biopsy.norm.mat[samples, ])
-combined.meta <- biopsy.meta[samples,]
-combined.meta$UMAP1 <- combined.umap$layout[,1]
-combined.meta$UMAP2 <- combined.umap$layout[,2]
-pdf("output/supUMAPall.pdf", width = 5, height = 3.5)
-combined.meta %>% ggplot(aes(x=UMAP1, y=UMAP2, color=Phenotype))+
-  geom_point(size=2, shape=21, col="black", aes(fill=Phenotype))+
-  scale_fill_manual(values=pheno.col.all)+
-  labs(x = "UMAP1",
-       y = "UMAP2")
-dev.off()
-
-der.umap <- umap(biopsy.norm.mat[rownames(sentinels.mat),])
-sentinels.meta$UMAP1 <- der.umap$layout[,1]
-sentinels.meta$UMAP2 <- der.umap$layout[,2]
-pdf("output/suppUMAPall.pdf", width = 5, height = 3.5)
-sentinels.meta %>% ggplot(aes(x=UMAP1, y=UMAP2, color=Phenotype))+
-  geom_point(size=2, shape=21, col="black", aes(fill=Phenotype))+
-  scale_fill_manual(values=pheno.col)+
-  labs(x = "UMAP1",
-       y = "UMAP2")
-dev.off()
-
-sentinels.meta$Biopsy <- rownames(sentinels.meta)
+all.umap <- umap(biopsy.norm.mat[rownames(sentinels.mat),])
+sentinels.meta$UMAP1 <- all.umap$layout[,1]
+sentinels.meta$UMAP2 <- all.umap$layout[,2]
+pdf("output/supp2UMAPall.pdf", width = 5, height = 3.5)
 sentinels.meta %>% ggplot(aes(x=UMAP1, y=UMAP2, color=Phenotype))+
   geom_point(size=2, shape=21, col="black", aes(fill=Phenotype))+
   scale_fill_manual(values=pheno.col)+
   labs(x = "UMAP1",
        y = "UMAP2")+
-  geom_text(data=subset(sentinels.meta, Phenotype =="ND"), aes(label=Biopsy))
-  
-#### SUP3 - reproducibility
+  geom_text(data=subset(sentinels.meta, Phenotype =="NeuD"), aes(label=Biopsy))
+dev.off()
+
+#### SUP5 - reproducibility
 
 repro <- read.csv(paste0(root_path, "repro2.csv"), row.names = "X")
 repro.meta <- biopsy.meta[rownames(repro)[c(1,2,5,6)], ] 
@@ -961,7 +717,7 @@ plot.umap %>% ggplot(aes(x=UMAP1, y=UMAP2))+
   theme(legend.position = "top")+
   labs(x = "UMAP1", y = "UMAP2")
 
-pheno.repro <- c("PSO", "AD", "LP")
+pheno.repro <- c("PsO", "AD", "LP")
 sent.repro <- biopsy.meta[biopsy.meta$Phenotype %in% pheno.repro, "Biopsy"]
 # sent.repro <- sent.repro[-c(58, 99, 109, 113)]
 
@@ -970,7 +726,7 @@ repro.meta <- biopsy.meta[sent.repro,]
 repro.meta$Phenotype <- as.factor(repro.meta$Phenotype)
 repro.meta[, signature.names] <- scaled.thres[sent.repro, signature.names]
 
-# repro.meta[is.na(repro.meta$Phenotype), "Phenotype"] <- "PSO"
+# repro.meta[is.na(repro.meta$Phenotype), "Phenotype"] <- "PsO"
 
 repro.umap <- umap(repro.mat)
 repro.meta$UMAP1 <- repro.umap$layout[,1]
@@ -998,6 +754,98 @@ ggplot(subset(repro.meta, !is.na(Location)), aes(x=Location, y=Th2)) +
   scale_fill_manual(values=sign.col)+
   ylim(0,1)
 
+#### SUP6 - DEGs BP & DHR
+
+pheno2 <- c("BP", "DHR")
+sent2 <- biopsy.meta[biopsy.meta$Sentinel & biopsy.meta$Phenotype %in% pheno2,
+                     "Biopsy"]
+
+merge.mat <- scaled.mat[c(sent1, sent2), ]
+merge.meta <- biopsy.meta[c(sent1, sent2), ]
+
+merge.meta$Phenotype <- as.factor(merge.meta$Phenotype)
+mm <- model.matrix(~0 + merge.meta$Phenotype)
+d <- t(biopsy.mat[rownames(merge.mat),])
+d <- DGEList(counts = d, group = merge.meta$Phenotype)
+y <- voom(d, mm, plot = F)
+fit <- lmFit(y, mm)
+levels <- colnames(coef(fit))
+contr <- diag(length(levels))
+contr[contr == 0] <- -1/(length(levels)-1)
+rownames(contr) <- levels
+tmp <- contrasts.fit(fit, contr)
+tmp <- eBayes(tmp)
+
+pheno.ind <- 2
+top.table <- top.table <- topTable(tmp, sort.by = "P", n = Inf, coef = pheno.ind)
+pb.dge <- top.table %>% filter(logFC > 1)
+pb.sign <- der.sign[der.sign$genes %in% rownames(pb.dge), ]
+pb.dge[pb.sign$genes, "Signature"] <- pb.sign$signature
+
+pdf("output/sup6DEGsBP.pdf", width = 7, height = 7)
+customVolcano(top.table, levels(merge.meta$Phenotype)[pheno.ind], rownames(pb.dge))
+dev.off()
+
+pheno.ind <- 4
+top.table <- top.table <- topTable(tmp, sort.by = "P", n = Inf, coef = pheno.ind)
+toxmp.dge <- top.table %>% filter(logFC > 1)
+toxmp.sign <- der.sign[der.sign$genes %in% rownames(toxmp.dge), ]
+toxmp.dge[toxmp.sign$genes, "Signature"] <- toxmp.sign$signature
+
+pdf("output/sup6DEGsDHR.pdf", width = 7, height = 7)
+customVolcano(top.table, levels(merge.meta$Phenotype)[pheno.ind], rownames(toxmp.dge))
+dev.off()
+
+#### SUP7 - Barplot example mismatch
+
+patient <- "NR_004"
+patient <- "NR_007"
+
+data.frame(Signature=signature.names, Score=scaled.thres[patient, signature.names]) %>% 
+  ggplot(aes(x=Signature, y=Score, fill=Signature))+
+  geom_col(width=0.9, color="black")+
+  scale_fill_manual(values=sign.col)+
+  scale_x_discrete(limits = signature.names)+
+  ylim(0,1)+
+  theme_classic()+
+  ggtitle(patient)+
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+dev.off()
+
+#### SUP8 - Check distribution of singature genes raw and normalized
+
+pdf("output/suppfig8genexp_raw.pdf", width = 25, height = 5)
+boxplot(biopsy.mat[sent1, der.sign$genes], las=2)
+dev.off()
+pdf("output/suppfig8genexp_norm.pdf", width = 25, height = 5)
+boxplot(sentinels.mat, las=2)
+dev.off()
+pdf("output/suppfig8genexp_scaled.pdf", width = 25, height = 5)
+boxplot(scaled.mat[sent1, der.sign$genes], las=2)
+dev.off()
+
+#### SupTable5 - Basics
+
+biopsy.meta$cat <- biopsy.meta$Phenotype
+biopsy.meta[biopsy.meta$erythro, "cat"] <- "erythro"
+biopsy.meta[biopsy.meta$advspso, "cat"] <- "rashes"
+biopsy.meta[biopsy.meta$post.treatment, "cat"] <- "NR"
+table(biopsy.meta[, "cat"])
+
+median(biopsy.meta$Age, na.rm = T)
+min(biopsy.meta$Age, na.rm = T)
+max(biopsy.meta$Age, na.rm = T)
+table(biopsy.meta$Gender)/length(biopsy.meta$Gender)*100
+table(biopsy.meta[, "Phenotype"])
+table(biopsy.meta[biopsy.meta$advspso, "Phenotype"])
+sum(is.na(biopsy.meta[biopsy.meta$advspso, "Phenotype"]))
+table(biopsy.meta[biopsy.meta$erythro, "Phenotype"])
+table(biopsy.meta[biopsy.meta$pre.treatment, "Phenotype"])
+sum(is.na(biopsy.meta[biopsy.meta$pre.treatment, "Phenotype"]))
+table(biopsy.meta[biopsy.meta$post.treatment, "Phenotype"])
+sum(is.na(biopsy.meta[biopsy.meta$post.treatment, "Phenotype"]))
+
+table(biopsy.meta$Location)/sum(!is.na((biopsy.meta$Location)))*100
 
 #### NSF forest
 
@@ -1008,50 +856,3 @@ sc <- import("scanpy")
 sent.sc <- sc$AnnData(biopsy.norm.mat[rownames(merge.mat),])
 sent.sc$obs$Phenotype <- merge.meta$Phenotype
 nsf.genes <- nsf$NSForest(sent.sc, "Phenotype", output_folder = "M:/DER/LABOS/IMMUNODER/Antoine/Script/nsforestReticulate/")
-
-#### COVID
-
-pheno.covid <- c(rep("Others", length(sent1)), rep("COVID", length(covid)))
-mm <- model.matrix(~0 + pheno.covid)
-d <- t(der.mat[c(sent1, covid),])
-d <- DGEList(counts = d, group = pheno.covid)
-y <- voom(d, mm, plot = F)
-fit <- lmFit(y, mm)
-levels <- colnames(coef(fit))
-contr <- diag(length(levels))
-contr[contr == 0] <- -1/(length(levels)-1)
-rownames(contr) <- levels
-tmp <- contrasts.fit(fit, contr)
-tmp <- eBayes(tmp)
-
-pheno.ind <- 1
-top.table <- top.table <- topTable(tmp, sort.by = "P", n = Inf, coef = pheno.ind)
-pdf("output/degsCOVID.pdf"), width = 7, height = 7)
-customVolcano(top.table, "COVID", der.sign$genes[der.sign$signature %in% "Macro"])
-dev.off()
-
-# Heatmap
-
-pheno.covid <- c("ND", "Wells", "HealthySkin")
-sent.covid <- biopsy.meta[biopsy.meta$Sentinel &
-                            biopsy.meta$Phenotype %in% pheno.covid, "Biopsy"]
-# sent.covid.mat <- biopsy.norm.mat[c(sent.covid, covid), der.sign$genes]
-sent.covid.mat <- biopsy.norm.mat[c(sent.covid, covid), der.sign[der.sign$signature %in% c("Eosino", "Neutro", "Macro"), "genes"]]
-pheno.covid <- c(biopsy.meta[sent.covid, "Phenotype"], rep("COVID", length(covid)))
-
-annot_col <- data.frame(Phenotype=pheno.covid)
-rownames(annot_col) <- rownames(sent.covid.mat)
-
-pheno.col.covid <- c(pheno.col, "#FF6666")
-names(pheno.col.covid)[8] <- "COVID"
-pdf("output/heatmapCOVID.pdf"), width = 15, height = 15)
-pheatmap <- pheatmap(t(na.omit(sent.covid.mat)), cluster_rows = FALSE, scale = "row", 
-                     clustering_distance_cols = "correlation", 
-                     clustering_method = "complete", 
-                     cellheight = 8, cellwidth = 8,fontsize = 12,
-                     fontsize_col =10, fontsize_row = 8,
-                     breaks = seq(-2.5, 2.5, by = 0.05), border_color = "black" ,
-                     color = colorRampPalette(rev(c("red", "black", "green")))(100),
-                     annotation_col = annot_col,
-                     annotation_colors = list(Phenotype=pheno.col.covid))
-dev.off()

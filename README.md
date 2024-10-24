@@ -13,3 +13,5 @@ This repository contains R scripts for generating graphs for the paper "Ref".
 1. Clone the repository:
    ```bash
    git clone https://github.com/yourusername/your-repo.git
+
+X. Get RCC files : https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE280220&format=file
