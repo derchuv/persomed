@@ -1,6 +1,6 @@
 # Immune Modules to guide Diagnosis and Personalized Treatment of Inflammatory Skin Diseases
 
-This repository contains R scripts for generating graphs for the paper "DOI".
+This repository contains R scripts for generating graphs for the paper **"Awaiting for DOI number"**.
 
 ## Repository Structure
 
@@ -31,4 +31,5 @@ This repository contains R scripts for generating graphs for the paper "DOI".
       mv "$new_filename" "${new_filename#*_}"
    done
    ```
-1. 
+1. Run the main script that creates all pdf's used for the figure.
+1. Check the results in the output folder.
