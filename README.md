@@ -1,6 +1,6 @@
 # Immune Modules to guide Diagnosis and Personalized Treatment of Inflammatory Skin Diseases
 
-This repository contains R scripts for generating graphs for the paper "Ref".
+This repository contains R scripts for generating graphs for the paper "DOI".
 
 ## Repository Structure
 
@@ -12,6 +12,23 @@ This repository contains R scripts for generating graphs for the paper "Ref".
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/your-repo.git
-
-X. Get RCC files : https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE280220&format=file
+   git clone git@github.com:derchuv/persomed.git
+   ```
+1. Move to the repository:
+   ```bash
+   cd persomed/data
+   ```
+1. Get RCC files, store and name them correctly:
+   ```bash
+   wget https://ftp.ncbi.nlm.nih.gov/geo/series/GSE280nnn/GSE280220/suppl/GSE280220_RAW.tar
+   mkdir rcc
+   tar -xvf GSE280220_RAW.tar -C rcc
+   rm GSE280200_RAW.tar
+   cd rcc
+   for file in *.gz; do
+      gzip -d "$file"
+      new_filename="${file%.gz}"
+      mv "$new_filename" "${new_filename#*_}"
+   done
+   ```
+1. 

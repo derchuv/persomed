@@ -19,14 +19,13 @@ setwd(file.path(script_dir, ".."))
 source("scripts/utils.R")
 
 ## Load raw data
-rcc_path <- "M:/DER/LABOS/IMMUNODER/Antoine/Data/NCOMMS-24-24396A/."
+rcc_path <- "data/rcc/."
 biopsy.mat <- read_rcc(rcc_path)
 biopsy.mat <- as.data.frame(biopsy.mat$raw)
 rownames(biopsy.mat) <- biopsy.mat$Name
 biopsy.mat <- as.data.frame(t(biopsy.mat[,c(-1:-3)]))
 
-biopsy.meta <- read.csv("data/biopsy_metaLAST17.csv", row.names = "X")
-biopsy.meta <- read.csv("data/biopsy_metaLAST18.csv", row.names = "X")
+biopsy.meta <- read.csv("data/biopsy.csv", row.names = "X")
 dupi.evol <- read.csv("data/testdata_dupi.csv", row.names = "X")
 
 ## Gene panels
