@@ -1,6 +1,6 @@
 # Immune Modules to guide Diagnosis and Personalized Treatment of Inflammatory Skin Diseases
 
-This repository contains R scripts for generating graphs for the paper **"Awaiting for DOI number"**.
+This repository contains R scripts for generating graphs for the paper [Immune Modules to guide Diagnosis and Personalized Treatment of Inflammatory Skin Diseases](https://doi.org/10.1038/s41467-024-54559-6).
 
 ## Repository Structure
 
