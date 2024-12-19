@@ -505,7 +505,7 @@ plot.umap %>% ggplot(aes(x=UMAP1, y=UMAP2))+
   scale_fill_manual(values=c(pheno.col, pheno.col2))
 dev.off()
 
-# Manual settings of the limits for each category
+## Manual settings of the limits for each category
 subset.meta[subset.meta$UMAP1 > 0 & subset.meta$UMAP2 < 1, "Prediction"] <- "AD"
 subset.meta[subset.meta$UMAP1 < 0 & subset.meta$UMAP2 < 0, "Prediction"] <- "PsO"
 subset.meta[subset.meta$UMAP1 < 3 & subset.meta$UMAP2 > 4, "Prediction"] <- "DHR"
@@ -732,13 +732,3 @@ table(biopsy.meta[biopsy.meta$post.treatment, "Phenotype"])
 sum(is.na(biopsy.meta[biopsy.meta$post.treatment, "Phenotype"]))
 
 table(biopsy.meta$Location)/sum(!is.na((biopsy.meta$Location)))*100
-
-#### NSF forest
-
-library(reticulate)
-use_python("c:/ProgramData/Anaconda3/python.exe")
-nsf <- import("nsforest")
-sc <- import("scanpy")
-sent.sc <- sc$AnnData(biopsy.norm.mat[rownames(merge.mat),])
-sent.sc$obs$Phenotype <- merge.meta$Phenotype
-nsf.genes <- nsf$NSForest(sent.sc, "Phenotype", output_folder = "M:/DER/LABOS/IMMUNODER/Antoine/Script/nsforestReticulate/")
